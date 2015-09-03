@@ -1,5 +1,8 @@
 # asmd-gen
+
 Takes in an ASMD (hardware RTL state machine design) description and outputs Verilog or VHDL. Like QFSM, only simpler.
+
+To be honest, though, it'll probably be more complex, not simpler. Time will tell.
 
 # Inspiration and Assistance
 
