@@ -1,4 +1,7 @@
 
+bin:
+	g++ asmd-gen.cpp -o asmd-gen
+
 LEXER=lexer
 
 test: lex
@@ -11,4 +14,5 @@ lex: lex.l
 clean:
 	rm -f $(LEXER)
 	rm -f lex.yy.c
+	rm -f asmd-gen
 

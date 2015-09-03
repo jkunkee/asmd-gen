@@ -11,10 +11,12 @@ extern "C" int yywrap() { }
 
 %%
 
-.                       printf("Unknown token!n"); yyterminate();
+"=="                    printf("==\n");
+.                       printf("Unknown token!\n"); yyterminate();
 
 %%
 
 main() {
     yylex();
 }
+
