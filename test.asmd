@@ -1,0 +1,46 @@
+
+options:
+async_reset=yes
+clock_type=posedge
+
+genericsparameters:
+# Do I really need this? I think so. Still, some things should be left for post processing, like includes and log2c.
+
+inputs:
+bit rx_valid
+bit[8] rx_data
+bit tx_busy
+
+outputs:
+bit reg_write <= 0
+bit[8] reg_data <= Z
+int reg_addr <= read_addr
+bit tx_valid <= 0
+bit[8] tx_data <= 00000000
+
+registers:
+read_addr
+write_addr
+
+states:
+
+state Idle:
+condition GotStart
+
+state Dump:
+action read_addr <= read_addr+1
+action tx_valid <= 1
+action tx_data <= reg_data
+nocondition DumpWait
+
+state DumpWait:
+condition NotBusyNotDone
+
+conditions:
+
+condition GotStart:
+if (rx_valid='1') then if (rx_data="space") then Dump else Write else Idle
+
+condition NotBusyNotDone:
+if (tx_busy='1') then DumpWait else if (read_addr=0) then Idle else Dump
+
