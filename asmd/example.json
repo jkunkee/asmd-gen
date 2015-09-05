@@ -1,0 +1,47 @@
+{
+    "Options": {
+        "Name": "State Machine of Doom",
+        "AddAsyncReset": true,
+        "ClockType": "posedge",
+        "FirstState": "Idle"
+    },
+    "Inputs": {
+        "data_in": {
+            "BitWidth": 8
+        },
+        "send_character": {
+            "BitWidth": 1
+        }
+    },
+    "Outputs": {
+        "tx_out": {
+            "BitWidth": 1,
+            "DefaultValue": "0"
+        },
+        "tx_busy": {
+            "BitWidth": 1,
+            "DefaultValue": "0"
+        }
+    },
+    "Parameters": {
+        "CLK_RATE": {
+            "Type": "natural",
+            "DefaultValue": "50_000_000"
+        },
+        "BAUD_RATE": {
+            "DefaultValue": "19_200"
+        }
+    },
+    "States": {
+        "Idle": {
+            "Condition": "GotStart"
+        }
+    },
+    "Conditions": {
+        "GotStart": {
+            "If": "send_character='1'",
+            "Then": "Start",
+            "Else": "Idle"
+        }
+    }
+}

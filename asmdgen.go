@@ -2,7 +2,9 @@
 package main
 
 import "fmt"
+import "./asmd"
 
 func main() {
-	fmt.Println("Hai")
+	fmt.Println("Haia")
+	asmd.Hi();
 }
