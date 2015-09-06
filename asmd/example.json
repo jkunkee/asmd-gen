@@ -1,6 +1,6 @@
 {
     "Options": {
-        "Name": "State Machine of Doom",
+        "ModuleName": "Serial Transmitter",
         "AddAsyncReset": true,
         "ClockType": "posedge",
         "FirstState": "Idle"
@@ -29,13 +29,15 @@
             "DefaultValue": "50_000_000"
         },
         "BAUD_RATE": {
+            "Type": "natural",
             "DefaultValue": "19_200"
         }
     },
     "States": {
         "Idle": {
             "Condition": "GotStart"
-        }
+        },
+        "Start": {}
     },
     "Conditions": {
         "GotStart": {
