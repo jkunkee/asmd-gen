@@ -2,7 +2,7 @@ package asmd
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -20,23 +20,22 @@ type StateMachine struct {
 }
 
 type Options struct {
-	ModuleName    string
-	ClockType     string // posedge, negedge, ddr?
-	AddAsyncReset bool
-	FirstState    string
-	Indent        string
-	Author        string
+	ModuleName        string
+	trimmedModuleName string // valid C identifier form of ModuleName
+	ClockType         string // posedge, negedge
+	AddAsyncReset     *bool  // default true
+	FirstState        string // must be in States
+	Indent            string // default four spaces
+	Author            string
 }
 
 type Variable struct {
-	BitWidth     uint64
-	Type         string
-	DefaultValue string
-	Value        string
+	BitWidth     uint64 // >1 invokes simple HDL array types
+	Type         string // natural, std_logic_vector, etc. Default: std_logic
+	DefaultValue string // TODO default to zero value or no default?
 }
 
 func Parse(filename string) (*StateMachine, error) {
-	fmt.Println("Hello World!")
 	mac := new(StateMachine)
 
 	fileBytes, err := ioutil.ReadFile(filename)
@@ -46,7 +45,16 @@ func Parse(filename string) (*StateMachine, error) {
 
 	err = json.Unmarshal(fileBytes, mac)
 
-	return mac, err
+	if err != nil {
+		return nil, err
+	}
+
+	// Set defaults on zero-valued inputs, validate input
+	if len(mac.Inputs) == 0 {
+		return nil, errors.New("No inputs specified.")
+	}
+
+	return mac, nil
 }
 
 // TODO make this durned thing not throw exceptions, or catch them locally
@@ -79,9 +87,17 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
+	// fix up module name to be a valid VHDL module name
 	replacer := strings.NewReplacer(" ", "", "\t", "")
 	trimmedModuleName := replacer.Replace(m.Options.ModuleName)
+
+	// Slip clock and reset definitions into place
+	m.Inputs["clk"] = Variable{1, "", "", ""}
+	if m.Options.AddAsyncReset {
+		m.Inputs["rst"] = Variable{1, "", "", ""}
+	}
 
 	// Comments
 	write(file, "--------------------------------------------------------------------------------\n")
@@ -175,7 +191,7 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	write(file, m.indent(1), "-- FSM declarations\n")
 	// State Machine "Next"s
 	write(file, m.indent(1), "type state is (")
-	//for stateName, _ := range m.States {}
+	//for stateName, _ := range m.States {} // TODO
 	write(file, ");\n")
 	// State machine states
 	//if _, ok := m.Options.FirstState in  // verify FirstState is valid
@@ -185,6 +201,20 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	write(file, "begin\n")
 
 	// Register process
+	write(file, m.indent(1), "process(clk, rst)\n")
+	write(file, m.indent(1), "begin\n")
+	write(file, m.indent(2), "if (rst='1') then\n")
+	write(file, m.indent(3), "state_reg <= ", m.Options.FirstState, ";\n")
+	if m.Options.ClockType == "posedge" {
+		write(file, m.indent(2), "elsif (clk'event and clk='1') then\n")
+	} else if m.Options.ClockType == "negedge" {
+		write(file, m.indent(2), "elsif (clk'event and clk='0') then\n")
+	} else {
+		return errors.New("Unrecognized clock type: " + m.Options.ClockType)
+	}
+	write(file, m.indent(3), "state_reg <= state_next;\n")
+	write(file, m.indent(2), "end if;\n")
+	write(file, m.indent(1), "end process;\n")
 	// Next State process
 	// Mealy(?) Output process
 	// architecture end

@@ -5,10 +5,11 @@ import "./asmd"
 import "io/ioutil"
 
 func main() {
-	fmt.Println("Begin")
+	fmt.Println("Parse")
 	machine, err := asmd.Parse("./asmd/example.json")
-	fmt.Println(machine, err)
+	//fmt.Println(machine, err)
 
+	fmt.Println("Dump VHDL")
 	err = machine.VHDL("./example.vhdl")
 	if err != nil {
 		fmt.Println(err)
