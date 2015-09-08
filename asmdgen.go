@@ -7,7 +7,6 @@ import "io/ioutil"
 func main() {
 	fmt.Println("Parse")
 	machine, err := asmd.Parse("./asmd/example.json")
-	//fmt.Println(machine, err)
 
 	fmt.Println("Dump VHDL")
 	err = machine.VHDL("./example.vhdl")

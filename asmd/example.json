@@ -1,6 +1,7 @@
 {
     "Options": {
         "ModuleName": "Serial Transmitter",
+        "Author": "Jon Kunkee",
         "AddAsyncReset": true,
         "ClockType": "posedge",
         "FirstState": "Idle"
@@ -44,6 +45,32 @@
             "If": "send_character='1'",
             "Then": "Start",
             "Else": "Idle"
+        }
+    },
+    "FunctionalUnits": {
+        "BarrelShifter": {
+            "Inputs": {
+                "shift": {
+                    "BitWidth": 1
+                },
+                "load": {
+                    "BitWidth": 1
+                },
+                "data_in": {
+                    "BitWidth": 8
+                }
+            },
+            "Outputs": {
+                "shift_out": {
+                    "BitWidth": 1
+                }
+            },
+            "Registers": {
+                "shift_reg": {
+                    "BitWidth": 8,
+                    "DefaultValue": "00000000"
+                }
+            }
         }
     }
 }

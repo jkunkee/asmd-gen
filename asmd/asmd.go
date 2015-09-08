@@ -7,14 +7,16 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type StateMachine struct {
-	Options    Options
-	Inputs     map[string]Variable
-	Outputs    map[string]Variable
-	Parameters map[string]Variable
-	Registers  map[string]Variable
+	Options         Options
+	Inputs          map[string]Variable
+	Outputs         map[string]Variable
+	Parameters      map[string]Variable
+	Registers       map[string]Variable
+	FunctionalUnits map[string]FunctionalUnit
 	//States map[string]State
 	//Conditions map[string]Condition
 }
@@ -32,7 +34,14 @@ type Options struct {
 type Variable struct {
 	BitWidth     uint64 // >1 invokes simple HDL array types
 	Type         string // natural, std_logic_vector, etc. Default: std_logic
-	DefaultValue string // TODO default to zero value or no default?
+	DefaultValue string // TODO default to zero value or no default? Depend on context, perhaps?
+}
+
+type FunctionalUnit struct {
+	//IsClocked bool
+	Inputs    map[string]Variable
+	Outputs   map[string]Variable
+	Registers map[string]Variable
 }
 
 func Parse(filename string) (*StateMachine, error) {
@@ -49,12 +58,65 @@ func Parse(filename string) (*StateMachine, error) {
 		return nil, err
 	}
 
-	// Set defaults on zero-valued inputs, validate input
-	if len(mac.Inputs) == 0 {
-		return nil, errors.New("No inputs specified.")
+	err = mac.Validate()
+	if err != nil {
+		return nil, err
 	}
 
+	mac.FixUpWithDefaults()
+
 	return mac, nil
+}
+
+func (m *StateMachine) Validate() error {
+	// Options
+	if m.Options.ModuleName == "" {
+		return errors.New("No module name specified (m.Options.Modulename).")
+	}
+
+	clockType := strings.ToLower(m.Options.ClockType)
+	if !(clockType == "posedge" || clockType == "negedge") {
+		return errors.New("m.Options.ClockType must be 'negedge' or 'posedge', not " + m.Options.ClockType)
+	}
+
+	if m.Options.FirstState == "" {
+		return errors.New("m.Options.FirstState not specified.")
+	}
+	// TODO
+	//if !(m.Options.FirstState in m.States) {
+	//	return errors.New("m.Options.FirstState, "+m.Options.FirstState+", is not in m.States.")
+	//}
+
+	// TODO everything else
+	if len(m.Inputs) == 0 {
+		return errors.New("No inputs specified.")
+	}
+	return nil
+}
+
+func (m *StateMachine) FixUpWithDefaults() {
+	// m.Options
+
+	// fix up module name to be a valid VHDL module name
+	replacer := strings.NewReplacer(" ", "", "\t", "", "-", "")
+	m.Options.trimmedModuleName = replacer.Replace(m.Options.ModuleName)
+
+	// Set AddAsyncReset default if needed
+	if m.Options.AddAsyncReset == nil {
+		m.Options.AddAsyncReset = new(bool)
+		*m.Options.AddAsyncReset = true
+	}
+
+	if m.Options.Indent == "" {
+		m.Options.Indent = "    "
+	}
+
+	// m.Inputs
+	// Slip clock and reset definitions into place
+	m.Inputs["clk"] = Variable{1, "", ""}
+	if *m.Options.AddAsyncReset {
+		m.Inputs["rst"] = Variable{1, "", ""}
+	}
 }
 
 // TODO make this durned thing not throw exceptions, or catch them locally
@@ -65,7 +127,7 @@ func write(f *os.File, ss ...string) {
 			panic(err)
 		}
 		if n != len(s) {
-			panic("Unable to write full string to file")
+			panic(errors.New("Unable to write full string to file"))
 		}
 	}
 }
@@ -89,24 +151,15 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	}
 	defer file.Close()
 
-	// fix up module name to be a valid VHDL module name
-	replacer := strings.NewReplacer(" ", "", "\t", "")
-	trimmedModuleName := replacer.Replace(m.Options.ModuleName)
-
-	// Slip clock and reset definitions into place
-	m.Inputs["clk"] = Variable{1, "", "", ""}
-	if m.Options.AddAsyncReset {
-		m.Inputs["rst"] = Variable{1, "", "", ""}
-	}
-
 	// Comments
+	write(file, "\n")
 	write(file, "--------------------------------------------------------------------------------\n")
-	write(file, "--\n")
 	write(file, "-- Module Name: ", m.Options.ModuleName, "\n")
-	write(file, "-- Author:      ", m.Options.Author, "\n") // TODO
-	write(file, "-- Date:        ", "\n")                   // TODO
+	write(file, "-- Author:      ", m.Options.Author, "\n")
+	write(file, "-- Date:        ", time.Now().Format("2 Jan 2006"), "\n")
 	write(file, "--\n")
 	write(file, "--------------------------------------------------------------------------------\n")
+	write(file, "\n")
 	write(file, "\n")
 
 	// library and use statements
@@ -114,9 +167,11 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	write(file, "library IEEE;\n")
 	write(file, "use IEEE.STD_LOGIC_1164.ALL;\n")
 	write(file, "use IEEE.NUMERIC_STD.ALL;\n")
+	write(file, "\n")
 
 	// entity start
-	write(file, "entity ", trimmedModuleName, " is\n")
+	trimmedModuleName := m.Options.trimmedModuleName
+	write(file, "entity ", m.Options.trimmedModuleName, " is\n")
 
 	// Entity - Generics
 	if len(m.Parameters) > 0 {
@@ -187,6 +242,7 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 
 	// Constants (?)
 	// Internal Signals
+	// Internal signals for functional units
 
 	write(file, m.indent(1), "-- FSM declarations\n")
 	// State Machine "Next"s
@@ -201,6 +257,7 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	write(file, "begin\n")
 
 	// Register process
+	write(file, m.indent(1), "-- FSM state register\n")
 	write(file, m.indent(1), "process(clk, rst)\n")
 	write(file, m.indent(1), "begin\n")
 	write(file, m.indent(2), "if (rst='1') then\n")
