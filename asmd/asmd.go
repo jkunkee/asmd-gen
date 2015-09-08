@@ -166,8 +166,21 @@ func (m *StateMachine) Validate() error {
 		if key == "" {
 			return errors.New("FunctionalUnit name cannot be the empty string.")
 		}
+		if len(val.Inputs) == 0 && len(val.Outputs) == 0 {
+			return errors.New("FunctionalUnit " + key + ": Really, a functional unit with no inputs or outputs?")
+		}
 		for a, b := range val.Inputs {
 			if err := validateInput(a, b); err != nil {
+				return err
+			}
+		}
+		for a, b := range val.Outputs {
+			if err := validateOutput(a, b); err != nil {
+				return err
+			}
+		}
+		for a, b := range val.Registers {
+			if err := validateRegister(a, b); err != nil {
 				return err
 			}
 		}
@@ -244,13 +257,13 @@ func (m *StateMachine) Validate() error {
 		}
 		if condition.Expression == "" {
 			// TODO reconsider this in light of skeleton code generation
-			return errors.New("Condition "+condName+" cannot have a blank Expression")
+			return errors.New("Condition " + condName + " cannot have a blank Expression")
 		}
-		if _, ok := stateNames[condition.TrueTarget];!ok {
-			return errors.New("Condition "+condName+"'s TrueTarget targets unknown state "+condition.TrueTarget)
+		if _, ok := stateNames[condition.TrueTarget]; !ok {
+			return errors.New("Condition " + condName + "'s TrueTarget targets unknown state " + condition.TrueTarget)
 		}
-		if _, ok := stateNames[condition.FalseTarget];!ok {
-			return errors.New("Condition "+condName+"'s FalseTarget targets unknown state "+condition.FalseTarget)
+		if _, ok := stateNames[condition.FalseTarget]; !ok {
+			return errors.New("Condition " + condName + "'s FalseTarget targets unknown state " + condition.FalseTarget)
 		}
 	}
 

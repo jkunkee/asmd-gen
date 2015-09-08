@@ -23,6 +23,7 @@ func main() {
 	vhdl, err := ioutil.ReadFile("./example.vhdl")
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	fmt.Println(string(vhdl))
 }

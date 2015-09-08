@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+func (v Variable) ToStdLogic(name string) string {
+	str := name + " : std_logic"
+
+	if v.BitWidth > 1 {
+		str += "_vector (" + strconv.FormatUint(v.BitWidth-1, 10) + " downto 0)"
+	}
+
+	return str
+}
+
+func (v Variable) ToStdLogicSignal(name string) string {
+	str := "signal " + v.ToStdLogic(name)
+	if v.DefaultValue != "" {
+		str += " := " + v.DefaultValue
+	}
+	str += ";"
+	return str
+}
+
+//func (v Variable) ToGeneric(name string) string {}
+
 func (m *StateMachine) VHDL(filename string) (err error) {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -67,10 +88,7 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 			} else {
 				write(file, "; ")
 			}
-			write(file, name, " : in std_logic")
-			if properties.BitWidth > 1 {
-				write(file, "_vector (", strconv.FormatUint(properties.BitWidth-1, 10), " downto 0)")
-			}
+			write(file, properties.ToStdLogic(name))
 			write(file, "\n")
 		}
 
@@ -85,10 +103,7 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 			} else {
 				write(file, "; ")
 			}
-			write(file, name, " : out std_logic")
-			if properties.BitWidth > 1 {
-				write(file, "_vector (", strconv.FormatUint(properties.BitWidth-1, 10), " downto 0)")
-			}
+			write(file, properties.ToStdLogic(name))
 			write(file, "\n")
 		}
 
@@ -96,23 +111,52 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	}
 
 	// Entity end
-	write(file, "end ", trimmedModuleName, ";\n")
+	write(file, "end ", m.Options.trimmedModuleName, ";\n")
 	write(file, "\n")
 
 	// architecture start
-	write(file, "architecture Behavioral of ", trimmedModuleName, " is\n")
+	write(file, "architecture Behavioral of ", m.Options.trimmedModuleName, " is\n")
 
 	// Constants (?)
 	// Internal Signals
+	write(file, m.indent(1), "-- Register signals\n")
+	for sigName, signal := range m.Registers {
+		write(file, m.indent(1), signal.ToStdLogicSignal(sigName+"_reg, "+sigName+"_next"), "\n")
+	}
+	write(file, "\n")
+
 	// Internal signals for functional units
+	for unitName, unit := range m.FunctionalUnits {
+		write(file, m.indent(1), "-- ", unitName, " connections\n")
+		for sigName, signal := range unit.Inputs {
+			write(file, m.indent(1), signal.ToStdLogicSignal(sigName), "\n")
+		}
+		for sigName, signal := range unit.Outputs {
+			write(file, m.indent(1), signal.ToStdLogicSignal(sigName), "\n")
+		}
+		for sigName, signal := range unit.Registers {
+			write(file, m.indent(1), signal.ToStdLogicSignal(sigName+"_reg"), "\n")
+			write(file, m.indent(1), signal.ToStdLogicSignal(sigName+"_reg, "+sigName+"_next"), "\n")
+		}
+	}
+	if len(m.FunctionalUnits) > 0 {
+		write(file, "\n")
+	}
 
 	write(file, m.indent(1), "-- FSM declarations\n")
-	// State Machine "Next"s
-	write(file, m.indent(1), "type state is (")
-	//for stateName, _ := range m.States {} // TODO
-	write(file, ");\n")
 	// State machine states
-	//if _, ok := m.Options.FirstState in  // verify FirstState is valid
+	write(file, m.indent(1), "type state is (")
+	isFirst := true
+	for stateName, _ := range m.States {
+		if isFirst {
+			isFirst = false
+		} else {
+			write(file, ", ")
+		}
+		write(file, stateName+"_s")
+	}
+	write(file, "\n")
+	// State machine signals
 	write(file, m.indent(1), "signal state_reg, state_next : state := ", m.Options.FirstState, ";\n")
 
 	// architecture "begin"
