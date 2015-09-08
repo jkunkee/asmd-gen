@@ -192,6 +192,26 @@ func (m *StateMachine) Validate() error {
 	}
 
 	// collect all register and output names to use when validating RTL operations
+	varSources := map[string]*map[string]Variable{
+		"Output":   &m.Outputs,
+		"Input":    &m.Inputs,
+		"Register": &m.Registers,
+	}
+	for fuName, funcUnit := range m.FunctionalUnits {
+		varSources["Functional Unit "+fuName+" Input"] = &funcUnit.Inputs
+		varSources["Functional Unit "+fuName+" Output"] = &funcUnit.Outputs
+		varSources["Functional Unit "+fuName+" Register"] = &funcUnit.Registers
+	}
+	varNames := make(map[string]string)
+	// TODO add inferred extra signals to varNames
+	for sourceName, varSource := range varSources {
+		for varName, _ := range *varSource {
+			if other, ok := varNames[varName]; ok {
+				return errors.New(varName + " from " + sourceName + " conflicts with '" + other + "'.")
+			}
+			varNames[varName] = sourceName + " " + varName
+		}
+	}
 
 	// States
 	if len(m.States) == 0 {
@@ -207,13 +227,32 @@ func (m *StateMachine) Validate() error {
 				return errors.New("State " + name + " specifies a register for an operation using an empty string.")
 			}
 			if oper == "" {
-				return errors.New("State " + name + " specifies an empty string operation on register "+regName+".")
+				return errors.New("State " + name + " specifies an empty string operation on register " + regName + ".")
 			}
-			// TODO next: ensure registers are valid
+			if _, ok := varNames[regName]; !ok {
+				return errors.New("State " + name + " refers to unknown signal " + regName)
+			}
+			// TODO ensure op targets are not inputs registers
+			// TOOD parse Operations to make sure inputs are valid
 		}
 	}
 
 	// Conditions
+	for condName, condition := range m.Conditions {
+		if condName == "" {
+			return errors.New("Conditions cannot be named the empty string.")
+		}
+		if condition.Expression == "" {
+			// TODO reconsider this in light of skeleton code generation
+			return errors.New("Condition "+condName+" cannot have a blank Expression")
+		}
+		if _, ok := stateNames[condition.TrueTarget];!ok {
+			return errors.New("Condition "+condName+"'s TrueTarget targets unknown state "+condition.TrueTarget)
+		}
+		if _, ok := stateNames[condition.FalseTarget];!ok {
+			return errors.New("Condition "+condName+"'s FalseTarget targets unknown state "+condition.FalseTarget)
+		}
+	}
 
 	return nil
 }

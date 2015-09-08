@@ -33,7 +33,6 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	write(file, "\n")
 
 	// entity start
-	trimmedModuleName := m.Options.trimmedModuleName
 	write(file, "entity ", m.Options.trimmedModuleName, " is\n")
 
 	// Entity - Generics

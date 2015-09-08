@@ -52,40 +52,40 @@
             "Operations": {
                 "ready": "1"
             },
-            "Next": ""
+            "Next": "GotStart"
         },
         "op": {
             "Operations": {
                 "r": "r+a",
                 "n": "n-1"
             },
-            "Next": ""
+            "Next": "IterationsDone"
         },
-        "init": {
+        "opinit": {
             "Operations": {
                 "n": "b_in",
                 "a": "a_in",
                 "r": "0"
             },
             "IsMealy": true,
-            "Next": ""
+            "Next": "ZerosDetected"
         }
     },
     "Conditions": {
         "GotStart": {
             "Expression": "start=1",
-            "TrueTarget": "",
-            "FalseTarget": ""
+            "TrueTarget": "opinit",
+            "FalseTarget": "idle"
         },
         "ZerosDetected": {
             "Expression": "a_in=0 or b_in=0",
-            "TrueTarget": "",
-            "FalseTarget": ""
+            "TrueTarget": "idle",
+            "FalseTarget": "op"
         },
         "IterationsDone": {
             "Expression": "n_next=0",
-            "TrueTarget": "",
-            "FalseTarget": ""
+            "TrueTarget": "idle",
+            "FalseTarget": "op"
         }
     }
 }
