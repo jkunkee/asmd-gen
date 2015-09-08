@@ -5,43 +5,44 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
-	"strconv"
 	"strings"
-	"time"
 )
 
 type StateMachine struct {
-	Options         Options
+	Options struct {
+		ModuleName        string
+		Author            string
+		trimmedModuleName string // valid C identifier form of ModuleName
+		ClockType         string // posedge, negedge
+		FirstState        string // must be in States
+		AddAsyncReset     *bool  // default true
+		Indent            string // default four spaces
+	}
+	Parameters      map[string]Variable
 	Inputs          map[string]Variable
 	Outputs         map[string]Variable
-	Parameters      map[string]Variable
 	Registers       map[string]Variable
-	FunctionalUnits map[string]FunctionalUnit
-	//States map[string]State
-	//Conditions map[string]Condition
-}
-
-type Options struct {
-	ModuleName        string
-	trimmedModuleName string // valid C identifier form of ModuleName
-	ClockType         string // posedge, negedge
-	AddAsyncReset     *bool  // default true
-	FirstState        string // must be in States
-	Indent            string // default four spaces
-	Author            string
+	FunctionalUnits map[string]struct {
+		Inputs    map[string]Variable
+		Outputs   map[string]Variable
+		Registers map[string]Variable
+	}
+	States map[string]struct {
+		Operations map[string]string // Valid HDL expressions to assign to register (map key); note that r <= r+a is rendered as r_next <= r+a
+		Next       string            // must match State or Condition
+		IsMealy    bool              // embeds logic in previous state instead of creating new state
+	}
+	Conditions map[string]struct {
+		Expression  string
+		TrueTarget  string
+		FalseTarget string
+	}
 }
 
 type Variable struct {
 	BitWidth     uint64 // >1 invokes simple HDL array types
 	Type         string // natural, std_logic_vector, etc. Default: std_logic
 	DefaultValue string // TODO default to zero value or no default? Depend on context, perhaps?
-}
-
-type FunctionalUnit struct {
-	//IsClocked bool
-	Inputs    map[string]Variable
-	Outputs   map[string]Variable
-	Registers map[string]Variable
 }
 
 func Parse(filename string) (*StateMachine, error) {
@@ -68,6 +69,36 @@ func Parse(filename string) (*StateMachine, error) {
 	return mac, nil
 }
 
+func validateInput(name string, input Variable) (err error) {
+	if name == "" {
+		return errors.New("Input name cannot be the empty string.")
+	}
+	if input.DefaultValue != "" {
+		return errors.New(name + ": Input DefaultValue is nonsensical.")
+	}
+	return nil
+}
+
+func validateOutput(name string, input Variable) (err error) {
+	if name == "" {
+		return errors.New("Output name cannot be the empty string.")
+	}
+	if input.DefaultValue == "" {
+		return errors.New(name + ": Outputs must have a DefaultValue defined.")
+	}
+	return nil
+}
+
+func validateRegister(name string, register Variable) (err error) {
+	if name == "" {
+		return errors.New("Register name cannot be the empty string.")
+	}
+	if register.DefaultValue == "" {
+		return errors.New(name + ": Registers must have a DefaultValue defined.")
+	}
+	return nil
+}
+
 func (m *StateMachine) Validate() error {
 	// Options
 	if m.Options.ModuleName == "" {
@@ -82,15 +113,108 @@ func (m *StateMachine) Validate() error {
 	if m.Options.FirstState == "" {
 		return errors.New("m.Options.FirstState not specified.")
 	}
-	// TODO
-	//if !(m.Options.FirstState in m.States) {
-	//	return errors.New("m.Options.FirstState, "+m.Options.FirstState+", is not in m.States.")
-	//}
-
-	// TODO everything else
-	if len(m.Inputs) == 0 {
-		return errors.New("No inputs specified.")
+	if _, ok := m.States[m.Options.FirstState]; !ok {
+		return errors.New("m.Options.FirstState, " + m.Options.FirstState + ", is not in m.States.")
 	}
+
+	// Parameters
+	for key, val := range m.Parameters {
+		if key == "" {
+			return errors.New("Parameter name cannot be the empty string.")
+		}
+		if val.DefaultValue == "" {
+			return errors.New(key + ": Parameters must have a DefaultValue.")
+		}
+		if val.BitWidth != 0 {
+			// TODO reconsider this, perhaps
+			return errors.New("Parameter BitWidth is ignored.")
+		}
+		if strings.ToLower(val.Type) != "natural" {
+			// TODO remove this restriction and allow arbitrary types
+		}
+	}
+
+	// Inputs
+	if len(m.Inputs) == 0 {
+		//return errors.New("No inputs specified.")
+	}
+	for key, val := range m.Inputs {
+		if err := validateInput(key, val); err != nil {
+			return err
+		}
+	}
+
+	// Outputs
+	if len(m.Outputs) == 0 {
+		//return errors.New("No Outputs specified.")
+	}
+	for key, val := range m.Outputs {
+		if err := validateOutput(key, val); err != nil {
+			return nil
+		}
+	}
+
+	// Registers
+	for name, register := range m.Registers {
+		if err := validateRegister(name, register); err != nil {
+			return err
+		}
+	}
+
+	// Functional Units
+	for key, val := range m.FunctionalUnits {
+		if key == "" {
+			return errors.New("FunctionalUnit name cannot be the empty string.")
+		}
+		for a, b := range val.Inputs {
+			if err := validateInput(a, b); err != nil {
+				return err
+			}
+		}
+	}
+
+	// collect all state and condition names to use when validating graph edges
+	stateNames := make(map[string]*string)
+	for name, _ := range m.States {
+		if name == "" {
+			return errors.New("State names must not be the empty string.")
+		}
+		stateNames[name] = nil
+	}
+	for name, _ := range m.Conditions {
+		if name == "" {
+			return errors.New("Condition names must not be the empty string.")
+		}
+		if _, ok := stateNames[name]; ok {
+			return errors.New("Condition " + name + " conflicts with a State name.")
+		}
+		stateNames[name] = nil
+	}
+
+	// collect all register and output names to use when validating RTL operations
+
+	// States
+	if len(m.States) == 0 {
+		return errors.New("A state machine with no states is not a state machine.")
+	}
+	for name, state := range m.States {
+		// Ensure State.Next is valid
+		if _, ok := stateNames[state.Next]; !ok {
+			return errors.New("State " + name + " specifies a Next target, " + state.Next + ", which is not a State or Condition.")
+		}
+		for regName, oper := range state.Operations {
+			if regName == "" {
+				return errors.New("State " + name + " specifies a register for an operation using an empty string.")
+			}
+			if oper == "" {
+				return errors.New("State " + name + " specifies an empty string operation on register "+regName+".")
+			}
+			// TODO next: ensure registers are valid
+		}
+	}
+
+	// Conditions
+
 	return nil
 }
 
@@ -142,141 +266,4 @@ func (m *StateMachine) indent(n uint) string {
 		s += m.Options.Indent
 	}
 	return s
-}
-
-func (m *StateMachine) VHDL(filename string) (err error) {
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// Comments
-	write(file, "\n")
-	write(file, "--------------------------------------------------------------------------------\n")
-	write(file, "-- Module Name: ", m.Options.ModuleName, "\n")
-	write(file, "-- Author:      ", m.Options.Author, "\n")
-	write(file, "-- Date:        ", time.Now().Format("2 Jan 2006"), "\n")
-	write(file, "--\n")
-	write(file, "--------------------------------------------------------------------------------\n")
-	write(file, "\n")
-	write(file, "\n")
-
-	// library and use statements
-	// TODO infer the minimal set using given types
-	write(file, "library IEEE;\n")
-	write(file, "use IEEE.STD_LOGIC_1164.ALL;\n")
-	write(file, "use IEEE.NUMERIC_STD.ALL;\n")
-	write(file, "\n")
-
-	// entity start
-	trimmedModuleName := m.Options.trimmedModuleName
-	write(file, "entity ", m.Options.trimmedModuleName, " is\n")
-
-	// Entity - Generics
-	if len(m.Parameters) > 0 {
-		write(file, m.indent(1), "generic (\n")
-		isFirst := true
-		for name, properties := range m.Parameters {
-			write(file, m.indent(2))
-			if isFirst {
-				write(file, "  ")
-				isFirst = false
-			} else {
-				write(file, "; ")
-			}
-			write(file, name, ": ", properties.Type, " := ", properties.DefaultValue)
-			write(file, "\n")
-		}
-		write(file, m.indent(1), ");\n")
-	}
-
-	if len(m.Inputs) > 0 || len(m.Outputs) > 0 {
-		write(file, m.indent(1), "port (\n")
-		var isFirst bool
-
-		// Entity - Inputs
-		isFirst = true
-		for name, properties := range m.Inputs {
-			write(file, m.indent(2))
-			if isFirst {
-				write(file, "  ")
-				isFirst = false
-			} else {
-				write(file, "; ")
-			}
-			write(file, name, " : in std_logic")
-			if properties.BitWidth > 1 {
-				write(file, "_vector (", strconv.FormatUint(properties.BitWidth-1, 10), " downto 0)")
-			}
-			write(file, "\n")
-		}
-
-		// Entity - Outputs
-		// We're merely continuing the same list so don't reset isFirst.
-		// TODO make this DRY with Inputs section
-		for name, properties := range m.Outputs {
-			write(file, m.indent(2))
-			if isFirst {
-				write(file, "  ")
-				isFirst = false
-			} else {
-				write(file, "; ")
-			}
-			write(file, name, " : out std_logic")
-			if properties.BitWidth > 1 {
-				write(file, "_vector (", strconv.FormatUint(properties.BitWidth-1, 10), " downto 0)")
-			}
-			write(file, "\n")
-		}
-
-		write(file, m.indent(1), ");\n")
-	}
-
-	// Entity end
-	write(file, "end ", trimmedModuleName, ";\n")
-	write(file, "\n")
-
-	// architecture start
-	write(file, "architecture Behavioral of ", trimmedModuleName, " is\n")
-
-	// Constants (?)
-	// Internal Signals
-	// Internal signals for functional units
-
-	write(file, m.indent(1), "-- FSM declarations\n")
-	// State Machine "Next"s
-	write(file, m.indent(1), "type state is (")
-	//for stateName, _ := range m.States {} // TODO
-	write(file, ");\n")
-	// State machine states
-	//if _, ok := m.Options.FirstState in  // verify FirstState is valid
-	write(file, m.indent(1), "signal state_reg, state_next : state := ", m.Options.FirstState, ";\n")
-
-	// architecture "begin"
-	write(file, "begin\n")
-
-	// Register process
-	write(file, m.indent(1), "-- FSM state register\n")
-	write(file, m.indent(1), "process(clk, rst)\n")
-	write(file, m.indent(1), "begin\n")
-	write(file, m.indent(2), "if (rst='1') then\n")
-	write(file, m.indent(3), "state_reg <= ", m.Options.FirstState, ";\n")
-	if m.Options.ClockType == "posedge" {
-		write(file, m.indent(2), "elsif (clk'event and clk='1') then\n")
-	} else if m.Options.ClockType == "negedge" {
-		write(file, m.indent(2), "elsif (clk'event and clk='0') then\n")
-	} else {
-		return errors.New("Unrecognized clock type: " + m.Options.ClockType)
-	}
-	write(file, m.indent(3), "state_reg <= state_next;\n")
-	write(file, m.indent(2), "end if;\n")
-	write(file, m.indent(1), "end process;\n")
-	// Next State process
-	// Mealy(?) Output process
-	// architecture end
-	write(file, "end Behavioral;\n")
-	write(file, "\n")
-
-	return nil
 }

@@ -1,0 +1,91 @@
+{
+    "Options": {
+        "ModuleName": "Repetitive Addition Multiplier",
+        "Author": "Pong P. Chu (JSON derived from Pong's design in Fig. 11.13)",
+        "ClockType": "posedge",
+        "FirstState": "idle"
+    },
+    "Parameters": {
+        "WIDTH": {
+            "Type": "natural",
+            "DefaultValue": "8"
+        }
+    },
+    "Inputs": {
+        "start": {
+            "BitWidth": 1
+        },
+        "a_in": {
+            "BitWidth": 8
+        },
+        "b_in": {
+            "BitWidth": 8
+        }
+    },
+    "Outputs": {
+        "ready": {
+            "BitWidth": 1,
+            "DefaultValue": "0"
+        },
+        "r_out": {
+            "BitWidth": 16,
+            "DefaultValue": "0"
+        }
+    },
+    "Registers": {
+        "a": {
+            "BitWidth": 8,
+            "DefaultValue": "0"
+        },
+        "n": {
+            "BitWidth": 8,
+            "DefaultValue": "0"
+        },
+        "r": {
+            "BitWidth": 8,
+            "DefaultValue": "0"
+        }
+    },
+    "FunctionalUnits": {},
+    "States": {
+        "idle": {
+            "Operations": {
+                "ready": "1"
+            },
+            "Next": ""
+        },
+        "op": {
+            "Operations": {
+                "r": "r+a",
+                "n": "n-1"
+            },
+            "Next": ""
+        },
+        "init": {
+            "Operations": {
+                "n": "b_in",
+                "a": "a_in",
+                "r": "0"
+            },
+            "IsMealy": true,
+            "Next": ""
+        }
+    },
+    "Conditions": {
+        "GotStart": {
+            "Expression": "start=1",
+            "TrueTarget": "",
+            "FalseTarget": ""
+        },
+        "ZerosDetected": {
+            "Expression": "a_in=0 or b_in=0",
+            "TrueTarget": "",
+            "FalseTarget": ""
+        },
+        "IterationsDone": {
+            "Expression": "n_next=0",
+            "TrueTarget": "",
+            "FalseTarget": ""
+        }
+    }
+}
