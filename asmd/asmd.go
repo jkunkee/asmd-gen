@@ -288,11 +288,6 @@ func (m *StateMachine) FixUpWithDefaults() {
 	}
 
 	// m.Inputs
-	// Slip clock and reset definitions into place
-	m.Inputs["clk"] = Variable{1, "", ""}
-	if *m.Options.AddAsyncReset {
-		m.Inputs["rst"] = Variable{1, "", ""}
-	}
 }
 
 // TODO make this durned thing not throw exceptions, or catch them locally

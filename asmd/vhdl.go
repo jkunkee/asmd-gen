@@ -76,35 +76,23 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 
 	if len(m.Inputs) > 0 || len(m.Outputs) > 0 {
 		write(file, m.indent(1), "port (\n")
-		var isFirst bool
+
+		// clk and rst
+		write(file, m.indent(2), "  ", (Variable{1, "", ""}).ToStdLogic("clk"), "\n")
+		if *m.Options.AddAsyncReset {
+			write(file, m.indent(2), "; ", (Variable{1, "", ""}).ToStdLogic("rst"), "\n")
+		}
 
 		// Entity - Inputs
-		isFirst = true
 		for name, properties := range m.Inputs {
-			write(file, m.indent(2))
-			if isFirst {
-				write(file, "  ")
-				isFirst = false
-			} else {
-				write(file, "; ")
-			}
-			write(file, properties.ToStdLogic(name))
-			write(file, "\n")
+			write(file, m.indent(2), "; ", properties.ToStdLogic(name), "\n")
 		}
 
 		// Entity - Outputs
 		// We're merely continuing the same list so don't reset isFirst.
 		// TODO make this DRY with Inputs section
 		for name, properties := range m.Outputs {
-			write(file, m.indent(2))
-			if isFirst {
-				write(file, "  ")
-				isFirst = false
-			} else {
-				write(file, "; ")
-			}
-			write(file, properties.ToStdLogic(name))
-			write(file, "\n")
+			write(file, m.indent(2), "; ", properties.ToStdLogic(name), "\n")
 		}
 
 		write(file, m.indent(1), ");\n")
@@ -118,6 +106,7 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	write(file, "architecture Behavioral of ", m.Options.trimmedModuleName, " is\n")
 
 	// Constants (?)
+
 	// Internal Signals
 	write(file, m.indent(1), "-- Register signals\n")
 	for sigName, signal := range m.Registers {
@@ -147,7 +136,10 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	// State machine states
 	write(file, m.indent(1), "type state is (")
 	isFirst := true
-	for stateName, _ := range m.States {
+	for stateName, state := range m.States {
+		if state.IsMealy {
+			continue
+		}
 		if isFirst {
 			isFirst = false
 		} else {
@@ -155,7 +147,7 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 		}
 		write(file, stateName)
 	}
-	write(file, "\n")
+	write(file, ");\n")
 	// State machine signals
 	write(file, m.indent(1), "signal state_reg, state_next : state := ", m.Options.FirstState, ";\n")
 
@@ -205,27 +197,13 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 
 	// Next State + Output + RTL Operation process
 	write(file, m.indent(1), "-- Next State + Output + RTL Operation process\n")
-	write(file, m.indent(1), "process(")
+	write(file, m.indent(1), "process(clk, rst, state_reg, state_next")
 	// TODO add in proper sensitivity list inference instead of this "benign sledgehammer" approach
-	isFirst = true
 	for name, _ := range m.Inputs {
-		if name == "clk" || name == "rst" {
-			continue
-		}
-		if !isFirst {
-			write(file, ", ")
-		} else {
-			isFirst = false
-		}
-		write(file, name)
+		write(file, ", ", name)
 	}
 	for name, _ := range m.Registers {
-		if !isFirst {
-			write(file, ", ")
-		} else {
-			isFirst = false
-		}
-		write(file, name+"_reg", ", ", name+"_next")
+		write(file, ", ", name+"_reg", ", ", name+"_next")
 	}
 	write(file, ")\n")
 	write(file, m.indent(1), "begin\n")
