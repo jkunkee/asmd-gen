@@ -247,7 +247,7 @@ func writeVhdlNextNetwork(file *os.File, indentLevel uint, m *StateMachine, next
 	if nextState, ok := m.States[nextThingName]; ok && !nextState.IsMealy {
 		// base case
 		// TODO validate this is valid during Parse
-		write(file, m.indent(indentLevel), "state_reg <= ", nextThingName, ";\n")
+		write(file, m.indent(indentLevel), "state_next <= ", nextThingName, ";\n")
 	} else if nextState, ok := m.States[nextThingName]; ok && nextState.IsMealy {
 		for out, action := range nextState.Operations {
 			varName := out
@@ -258,7 +258,7 @@ func writeVhdlNextNetwork(file *os.File, indentLevel uint, m *StateMachine, next
 		}
 		writeVhdlNextNetwork(file, indentLevel, m, nextState.Next)
 	} else if cond, ok := m.Conditions[nextThingName]; ok {
-		// TODO support elsif
+		// TODO support elsif to reduce code duplication
 		write(file, m.indent(indentLevel), "if ", cond.Expression, " then\n")
 		writeVhdlNextNetwork(file, indentLevel+1, m, cond.TrueTarget)
 		write(file, m.indent(indentLevel), "else\n")
