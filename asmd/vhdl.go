@@ -221,7 +221,7 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 		if state.IsMealy {
 			continue
 		}
-		write(file, m.indent(3), "case ", stateName, " =>\n")
+		write(file, m.indent(3), "when ", stateName, " =>\n")
 		writeVhdlNextNetwork(file, 4, m, state.Next)
 		for regName, operation := range state.Operations {
 			write(file, m.indent(4), regName+"_next", " <= ", operation, ";\n")
