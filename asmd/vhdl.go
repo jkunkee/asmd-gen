@@ -7,8 +7,14 @@ import (
 	"time"
 )
 
-func (v Variable) ToStdLogic(name string) string {
-	str := name + " : std_logic"
+func (v Variable) ToStdLogic(name string, dir string) string {
+	str := name + " : "
+
+	if dir != "" {
+		str += dir + " "
+	}
+
+	str += "std_logic"
 
 	if v.BitWidth > 1 {
 		str += "_vector (" + strconv.FormatUint(v.BitWidth-1, 10) + " downto 0)"
@@ -18,7 +24,7 @@ func (v Variable) ToStdLogic(name string) string {
 }
 
 func (v Variable) ToStdLogicSignal(name string) string {
-	str := "signal " + v.ToStdLogic(name)
+	str := "signal " + v.ToStdLogic(name, "")
 	if v.DefaultValue != "" {
 		str += " := " + v.DefaultValue
 	}
@@ -41,9 +47,7 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	write(file, "-- Module Name: ", m.Options.ModuleName, "\n")
 	write(file, "-- Author:      ", m.Options.Author, "\n")
 	write(file, "-- Date:        ", time.Now().Format("2 Jan 2006"), "\n")
-	write(file, "--\n")
 	write(file, "--------------------------------------------------------------------------------\n")
-	write(file, "\n")
 	write(file, "\n")
 
 	// library and use statements
@@ -51,6 +55,7 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	write(file, "library IEEE;\n")
 	write(file, "use IEEE.STD_LOGIC_1164.ALL;\n")
 	write(file, "use IEEE.NUMERIC_STD.ALL;\n")
+	write(file, "\n")
 	write(file, "\n")
 
 	// entity start
@@ -78,21 +83,21 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 		write(file, m.indent(1), "port (\n")
 
 		// clk and rst
-		write(file, m.indent(2), "  ", (Variable{1, "", ""}).ToStdLogic("clk"), "\n")
+		write(file, m.indent(2), "  ", (Variable{1, "", ""}).ToStdLogic("clk", "in"), "\n")
 		if *m.Options.AddAsyncReset {
-			write(file, m.indent(2), "; ", (Variable{1, "", ""}).ToStdLogic("rst"), "\n")
+			write(file, m.indent(2), "; ", (Variable{1, "", ""}).ToStdLogic("rst", "in"), "\n")
 		}
 
 		// Entity - Inputs
 		for name, properties := range m.Inputs {
-			write(file, m.indent(2), "; ", properties.ToStdLogic(name), "\n")
+			write(file, m.indent(2), "; ", properties.ToStdLogic(name, "in"), "\n")
 		}
 
 		// Entity - Outputs
 		// We're merely continuing the same list so don't reset isFirst.
 		// TODO make this DRY with Inputs section
 		for name, properties := range m.Outputs {
-			write(file, m.indent(2), "; ", properties.ToStdLogic(name), "\n")
+			write(file, m.indent(2), "; ", properties.ToStdLogic(name, "out"), "\n")
 		}
 
 		write(file, m.indent(1), ");\n")

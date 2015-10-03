@@ -11,7 +11,7 @@ func main() {
 	if len(flag.Args()) > 0 {
 		filename = flag.Arg(0)
 	} else {
-		filename = "./asmd/repetitiveadditionmultiplier.json"
+		filename = "./json/repetitiveadditionmultiplier.json"
 	}
 
 	fmt.Println("Parse")
