@@ -1,0 +1,118 @@
+{
+    "Options": {
+        "ModuleName": "Period Divider",
+        "Author": "Jon Kunkee",
+        "ClockType": "posedge",
+        "FirstState": "main"
+    },
+    "Parameters": {
+        "PERIOD_IN_TICKS": {
+            "Type": "natural",
+            "DefaultValue": "200_000_000"
+        }
+    },
+    "Inputs": {
+        "run": {
+            "BitWidth": 1
+        },
+        "increment": {
+            "BitWidth": 1
+        },
+        "to_zero": {
+            "BitWidth": 1
+        }
+    },
+    "Outputs": {
+        "q1_end": {
+            "BitWidth": 1,
+            "DefaultValue": "0"
+        },
+        "q2_end": {
+            "BitWidth": 1,
+            "DefaultValue": "0"
+        },
+        "q3_end": {
+            "BitWidth": 1,
+            "DefaultValue": "0"
+        },
+        "q4_end": {
+            "BitWidth": 1,
+            "DefaultValue": "0"
+        }
+    },
+    "Registers": {
+        "count": {
+            "BitWidth": 8,
+            "DefaultValue": "0"
+        }
+    },
+    "FunctionalUnits": {
+        "soiree": {
+            "Inputs": {
+                "bob": {
+                    "BitWidth": 8
+                }
+            }
+        }
+    },
+    "States": {
+        "main": {
+            "Next": "TestToZero"
+        },
+        "rollover": {
+            "Operations": {
+                "count": "(others => '0')"
+            },
+            "IsMealy": true,
+            "Next": "main"
+        },
+        "rollunder": {
+            "Operations": {
+                "count": "PERIOD_IN_TICKS-1"
+            },
+            "IsMealy": true,
+            "Next": "main"
+        },
+        "incr": {
+            "Operations": {
+                "count": "count+1"
+            },
+            "IsMealy": true,
+            "Next": "main"
+        },
+        "decr": {
+            "Operations": {
+                "count": "count-1"
+            },
+            "IsMealy": true,
+            "Next": "main"
+        }
+    },
+    "Conditions": {
+        "TestToZero": {
+            "Expression": "to_zero=1",
+            "TrueTarget": "rollover",
+            "FalseTarget": "TestCount"
+        },
+        "TestCount": {
+            "Expression": "run=1",
+            "TrueTarget": "TestDirection",
+            "FalseTarget": "main"
+        },
+        "TestDirection": {
+            "Expression": "increment=1",
+            "TrueTarget": "TestRollover",
+            "FalseTarget": "TestRollunder"
+        },
+        "TestRollover": {
+            "Expression": "count=PERIOD_IN_TICKS-1",
+            "TrueTarget": "rollover",
+            "FalseTarget": "incr"
+        },
+        "TestRollunder": {
+            "Expression": "count=0",
+            "TrueTarget": "rollunder",
+            "FalseTarget": "decr"
+        }
+    }
+}

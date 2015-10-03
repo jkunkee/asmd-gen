@@ -46,7 +46,15 @@
             "DefaultValue": "0"
         }
     },
-    "FunctionalUnits": {},
+    "FunctionalUnits": {
+        "soiree": {
+            "Inputs": {
+                "bob": {
+                    "BitWidth": 8
+                }
+            }
+        }
+    },
     "States": {
         "idle": {
             "Operations": {
