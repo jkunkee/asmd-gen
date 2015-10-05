@@ -169,13 +169,14 @@ func (m *StateMachine) Validate() error {
 		if len(val.Inputs) == 0 && len(val.Outputs) == 0 {
 			return errors.New("FunctionalUnit " + key + ": Really, a functional unit with no inputs or outputs?")
 		}
+		// Functional units are inverted from the ASMD's perspective
 		for a, b := range val.Inputs {
-			if err := validateInput(a, b); err != nil {
+			if err := validateOutput(a, b); err != nil {
 				return err
 			}
 		}
 		for a, b := range val.Outputs {
-			if err := validateOutput(a, b); err != nil {
+			if err := validateInput(a, b); err != nil {
 				return err
 			}
 		}
@@ -205,20 +206,20 @@ func (m *StateMachine) Validate() error {
 	}
 
 	// collect all register and output names to use when validating RTL operations
-	varSources := map[string]*map[string]Variable{
-		"Output":   &m.Outputs,
-		"Input":    &m.Inputs,
-		"Register": &m.Registers,
+	varSources := map[string]map[string]Variable{
+		"Output":   m.Outputs,
+		"Input":    m.Inputs,
+		"Register": m.Registers,
 	}
 	for fuName, funcUnit := range m.FunctionalUnits {
-		varSources["Functional Unit "+fuName+" Input"] = &funcUnit.Inputs
-		varSources["Functional Unit "+fuName+" Output"] = &funcUnit.Outputs
-		varSources["Functional Unit "+fuName+" Register"] = &funcUnit.Registers
+		varSources["Functional Unit "+fuName+" Input"] = funcUnit.Inputs
+		varSources["Functional Unit "+fuName+" Output"] = funcUnit.Outputs
+		varSources["Functional Unit "+fuName+" Register"] = funcUnit.Registers
 	}
 	varNames := make(map[string]string)
 	// TODO add inferred extra signals to varNames
 	for sourceName, varSource := range varSources {
-		for varName, _ := range *varSource {
+		for varName, _ := range varSource {
 			if other, ok := varNames[varName]; ok {
 				return errors.New(varName + " from " + sourceName + " conflicts with '" + other + "'.")
 			}
@@ -267,7 +268,50 @@ func (m *StateMachine) Validate() error {
 		}
 	}
 
+	// State graph is made up of DAGs
+	for stateName, state := range m.States {
+		errStr := validateStateSubgraph(state.Next, map[string]bool{}, m)
+		if errStr != "" {
+			return errors.New("While validating DAG after " + stateName + ": " + errStr)
+		}
+	}
+
 	return nil
+}
+
+func validateStateSubgraph(nodeName string, seenNodes map[string]bool, m *StateMachine) string {
+	// If we've seen the node name before, we've found a cycle.
+	if _, ok := seenNodes[nodeName]; ok {
+		return "Graph cycles at " + nodeName
+	}
+
+	// If it's a proper state, we're done.
+	if state, ok := m.States[nodeName]; ok && !state.IsMealy {
+		return ""
+	}
+
+	// Otherwise, make a note and recurse.
+	seenNodes[nodeName] = true
+
+	// we've landed on a Mealy state
+	if state, ok := m.States[nodeName]; ok && state.IsMealy {
+		return validateStateSubgraph(state.Next, seenNodes, m)
+	}
+
+	// we've landed on a Condition
+	if cond, ok := m.Conditions[nodeName]; ok {
+		val := validateStateSubgraph(cond.TrueTarget, seenNodes, m)
+		if val != "" {
+			return val
+		}
+		val = validateStateSubgraph(cond.FalseTarget, seenNodes, m)
+		if val != "" {
+			return val
+		}
+		return ""
+	}
+
+	return "Node " + nodeName + " was neither a State nor a Condition."
 }
 
 func (m *StateMachine) FixUpWithDefaults() {

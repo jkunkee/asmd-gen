@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"sort"
 )
 
 func (v Variable) ToStdLogic(name string, dir string) string {
@@ -132,6 +133,7 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 			write(file, m.indent(1), signal.ToStdLogicSignal(sigName+"_reg"), "\n")
 			write(file, m.indent(1), signal.ToStdLogicSignal(sigName+"_reg, "+sigName+"_next"), "\n")
 		}
+		write(file, "\n")
 	}
 	if len(m.FunctionalUnits) > 0 {
 		write(file, "\n")
@@ -155,6 +157,7 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	write(file, ");\n")
 	// State machine signals
 	write(file, m.indent(1), "signal state_reg, state_next : state := ", m.Options.FirstState, ";\n")
+	write(file, "\n")
 
 	// architecture "begin"
 	write(file, "begin\n")
@@ -222,7 +225,16 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 	}
 	// state switch statement
 	write(file, m.indent(2), "case state_reg is\n")
-	for stateName, state := range m.States {
+	// Sort alphabetically to make it somewhat readable
+	stateNames := make([]string, len(m.States))
+	idx := 0
+	for stateName := range m.States {
+		stateNames[idx] = stateName
+		idx++
+	}
+	sort.Strings(stateNames)
+	for _, stateName := range stateNames {
+		state := m.States[stateName]
 		if state.IsMealy {
 			continue
 		}
