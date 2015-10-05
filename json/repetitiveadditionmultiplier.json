@@ -50,7 +50,8 @@
         "soiree": {
             "Inputs": {
                 "bob": {
-                    "BitWidth": 8
+                    "BitWidth": 8,
+                    "DefaultValue": "(others => 0)"
                 }
             }
         }
