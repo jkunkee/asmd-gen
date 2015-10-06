@@ -130,7 +130,6 @@ func (m *StateMachine) VHDL(filename string) (err error) {
 			write(file, m.indent(1), signal.ToStdLogicSignal(sigName), "\n")
 		}
 		for sigName, signal := range unit.Registers {
-			write(file, m.indent(1), signal.ToStdLogicSignal(sigName+"_reg"), "\n")
 			write(file, m.indent(1), signal.ToStdLogicSignal(sigName+"_reg, "+sigName+"_next"), "\n")
 		}
 		write(file, "\n")
